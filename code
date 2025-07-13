@@ -1,0 +1,146 @@
+from flask import Flask, render_template_string, request, redirect, url_for, flash
+from datetime import datetime
+import uuid
+
+app = Flask(__name__)
+app.secret_key = 'secret-key'
+
+# Dummy data
+participants = ['Alice', 'Bob', 'Charlie', 'David']
+interviews = {}  # key = uuid, value = dict with details
+
+# Base Layout Template
+layout = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interview Creation Portal</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="p-4">
+<div class="container">
+    <h2 class="mb-4 text-center">{{ title }}</h2>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="alert alert-warning">{{ messages[0] }}</div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+    <div class="text-center mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">Back to List</a>
+    </div>
+</div>
+</body>
+</html>
+'''
+
+# Home/List Page
+list_template = '''
+{% extends layout %}
+{% block content %}
+  <div class="text-center mb-3">
+    <a href="{{ url_for('create') }}" class="btn btn-primary">Create New Interview</a>
+  </div>
+  {% if interviews %}
+    <ul class="list-group">
+      {% for id, i in interviews.items() %}
+        <li class="list-group-item">
+          <strong>{{ i['start'] }} – {{ i['end'] }}</strong><br>
+          Participants: {{ i['participants'] | join(', ') }}<br>
+          <a href="{{ url_for('edit', interview_id=id) }}">Edit</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-muted">No interviews scheduled.</p>
+  {% endif %}
+{% endblock %}
+'''
+
+# Create/Edit Form Template
+form_template = '''
+{% extends layout %}
+{% block content %}
+<form method="post">
+  <div class="mb-3">
+    <label>Participants (Select at least 2):</label><br>
+    {% for p in all_participants %}
+      <div class="form-check form-check-inline">
+        <input class="form-check-input" type="checkbox" name="participants" value="{{ p }}" {% if p in selected %}checked{% endif %}>
+        <label class="form-check-label">{{ p }}</label>
+      </div>
+    {% endfor %}
+  </div>
+  <div class="mb-3">
+    <label>Start Time:</label>
+    <input class="form-control" type="datetime-local" name="start" value="{{ start }}">
+  </div>
+  <div class="mb-3">
+    <label>End Time:</label>
+    <input class="form-control" type="datetime-local" name="end" value="{{ end }}">
+  </div>
+  <button class="btn btn-success" type="submit">Save</button>
+</form>
+{% endblock %}
+'''
+
+# ROUTES
+@app.route('/')
+def index():
+    sorted_list = dict(sorted(interviews.items(), key=lambda x: x[1]['start_raw']))
+    return render_template_string(list_template, layout=layout, interviews=sorted_list, title="Interview List")
+
+@app.route('/create', methods=['GET', 'POST'])
+def create():
+    if request.method == 'POST':
+        return handle_form()
+    return render_template_string(form_template, layout=layout, all_participants=participants,
+                                  selected=[], start='', end='', title="Create Interview")
+
+@app.route('/edit/<interview_id>', methods=['GET', 'POST'])
+def edit(interview_id):
+    interview = interviews.get(interview_id)
+    if not interview:
+        flash("Interview not found.")
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        return handle_form(edit_id=interview_id)
+    return render_template_string(form_template, layout=layout, all_participants=participants,
+                                  selected=interview['participants'], start=interview['start_raw'],
+                                  end=interview['end_raw'], title="Edit Interview")
+
+def handle_form(edit_id=None):
+    selected = request.form.getlist('participants')
+    start_raw = request.form['start']
+    end_raw = request.form['end']
+
+    if len(selected) < 2:
+        flash("Select at least 2 participants.")
+        return redirect(request.url)
+    try:
+        start = datetime.fromisoformat(start_raw)
+        end = datetime.fromisoformat(end_raw)
+        if start >= end:
+            flash("Start time must be before end time.")
+            return redirect(request.url)
+    except Exception:
+        flash("Invalid date/time format.")
+        return redirect(request.url)
+
+    interview_data = {
+        'participants': selected,
+        'start': start.strftime("%Y-%m-%d %H:%M"),
+        'end': end.strftime("%Y-%m-%d %H:%M"),
+        'start_raw': start_raw,
+        'end_raw': end_raw
+    }
+
+    if edit_id:
+        interviews[edit_id] = interview_data
+    else:
+        interviews[str(uuid.uuid4())] = interview_data
+
+    return redirect(url_for('index'))
+
+if __name__ == '__main__':
+    app.run(debug=True)
