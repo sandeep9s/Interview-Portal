@@ -1,0 +1,71 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interview Creation Portal</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        label { display: block; margin-top: 10px; }
+        input, select { padding: 5px; width: 300px; }
+        button { margin-top: 15px; padding: 10px 20px; }
+        .interview-list { margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <h1>Interview Creation Portal</h1>
+    <form id="interviewForm">
+        <label>Participant Name:
+            <input type="text" id="participant" required />
+        </label>
+        <label>Start Time:
+            <input type="datetime-local" id="start" required />
+        </label>
+        <label>End Time:
+            <input type="datetime-local" id="end" required />
+        </label>
+        <button type="submit">Create Interview</button>
+    </form>
+
+    <div class="interview-list">
+        <h2>Upcoming Interviews</h2>
+        <ul id="interviewList"></ul>
+    </div>
+
+    <script>
+        const form = document.getElementById("interviewForm");
+        const list = document.getElementById("interviewList");
+
+        let interviews = [];
+
+        form.onsubmit = function(e) {
+            e.preventDefault();
+            const participant = document.getElementById("participant").value;
+            const start = document.getElementById("start").value;
+            const end = document.getElementById("end").value;
+
+            interviews.push({ participant, start, end });
+            displayInterviews();
+            form.reset();
+        };
+
+        function displayInterviews() {
+            list.innerHTML = "";
+            interviews.forEach((i, idx) => {
+                const li = document.createElement("li");
+                li.innerHTML = `#${idx + 1}: ${i.participant} - ${i.start} to ${i.end}
+                <button onclick="editInterview(${idx})">Edit</button>`;
+                list.appendChild(li);
+            });
+        }
+
+        function editInterview(index) {
+            const i = interviews[index];
+            document.getElementById("participant").value = i.participant;
+            document.getElementById("start").value = i.start;
+            document.getElementById("end").value = i.end;
+            interviews.splice(index, 1); // remove old so edited version can be re-added
+            displayInterviews();
+        }
+    </script>
+</body>
+</html>
